@@ -64,3 +64,24 @@ resource "aws_s3_bucket_policy" "gdpr_data_ssl_only" {
     ]
   })
 }
+
+resource "aws_s3_bucket_lifecycle_configuration" "gdpr_data" {
+  bucket = aws_s3_bucket.gdpr_data.id
+
+  # GDPR Article 5: data minimization - delete data that is no longer needed
+  rule {
+    id     = "gdpr-data-minimization"
+    status = "Enabled"
+
+    # Move to cold storage after 30 days (reduces cost while retaining access)
+    transition {
+      days          = 30
+      storage_class = "GLACIER"
+    }
+
+    # Permanently delete after 90 days (enforces data minimization)
+    expiration {
+      days = 90
+    }
+  }
+}

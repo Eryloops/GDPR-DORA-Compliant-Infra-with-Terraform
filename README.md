@@ -43,17 +43,17 @@ Here are the exact regulatory frameworks and sections implemented in this code:
 
 ### 🇪🇺 General Data Protection Regulation (GDPR)
 
-* **Data Residency (Sovereignty):** Implemented in region-restriction.tf. The region-lock policy physically blocks users and automation from launching databases or storage units outside the EU boundary, ensuring personal data never leaves sovereign borders.
-* **Security of Processing (Data Encryption):** Implemented in kms.tf. Enforces strong data-at-rest encryption with mandatory key rotation controlled entirely by the organization.
-* **Accountability & Traceability:** Implemented via audit.tf and storage.tf. Generates a complete record of who accessed or modified data, satisfying the requirement to detect, trace, and report potential security breaches instantly.
+* **Data Residency (Sovereignty):** Implemented in `region-restriction.tf`. The region-lock policy physically blocks users and automation from launching databases or storage units outside the EU boundary, ensuring personal data never leaves sovereign borders.
+* **Security of Processing (Data Encryption):** Implemented in `kms.tf`. Enforces strong data-at-rest encryption with mandatory key rotation controlled entirely by the organization.
+* **Accountability & Traceability (Data Minimization):** Implemented via `audit.tf` and `storage.tf`. Generates a complete record of who accessed or modified data, satisfying the requirement to detect, trace, and report potential security breaches instantly.
 
 ### Digital Operational Resilience Act (DORA)
 
 * **Pillar 1 (ICT Risk Management):** Restricts the operational blast radius by preventing accidental or unauthorized infrastructure deployments in unapproved global regions.
+`
+* **Pillar 2 (ICT Incident Reporting & Audit Trails):** Implemented via `audit.tf`, `storage.tf` and `monitoring.tf`. We orchestrate AWS CloudTrail to log 100% of administrative events into an immutable, tamper-proof S3 bucket with Object Lock (Compliance Mode). Concurrently, CloudWatch Metric Filters actively scan these logs for unauthorized API errors (`AccessDenied`), automatically triggering real-time CloudWatch Alarms and SNS notifications to ensure instant incident detection and rapid compliance reporting.
 
-* **Pillar 2 (ICT Incident Reporting & Audit Trails):** Implemented via audit.tf and storage.tf. We orchestrate AWS CloudTrail to log 100% of administrative events and store them in an S3 bucket with Object Lock (Compliance Mode). This creates an immutable, tamper-proof audit trail that cannot be deleted or altered, even by an administrator.
-
-* **Pillar 4 (Third-Party Risk Management / Cloud Vendor Control):** Implemented via kms.tf and cloud-act-mitigation.tf. It establishes enterprise-managed guardrails to control cloud vendor exposure, ensuring that third-party infrastructure providers cannot access or compromise sensitive financial data.
+* **Pillar 4 (Third-Party Risk Management / Cloud Vendor Control):** Implemented via `kms.tf` and cloud-act-mitigation.tf. It establishes enterprise-managed guardrails to control cloud vendor exposure, ensuring that third-party infrastructure providers cannot access or compromise sensitive financial data.
 
 ---
 
@@ -64,6 +64,7 @@ Here are the exact regulatory frameworks and sections implemented in this code:
 - **AWS CloudTrail** - Continuous account auditing and governance logging
 - **AWS S3** - Hardened storage featuring object-level immutability (Object Lock)
 - **AWS IAM** - Fine-grained access control and geographic region enforcement
+- **AWS CloudWatch & SNS** - Real-time incident tracking, pattern filtering, and alerting
 
 ---
 
@@ -73,16 +74,16 @@ Following cloud development best practices, the Terraform configuration is modul
 
 ```text
 eu-compliance-infra/
-├── terraform.tf          # Core Terraform settings and provider requirements
-├── variables.tf          # Dynamic naming, resource tags, and allowed regions
-├── kms.tf                # KMS Customer Managed Keys and rotation definitions
-├── storage.tf            # Hardened S3 bucket with Object Lock (WORM pattern)
-├── audit.tf              # CloudTrail orchestration linked to secure storage
+├── terraform.tf        # Core Terraform settings and provider requirements
+├── variables.tf        # Dynamic naming, resource tags, and allowed regions (no hardcoding)
+├── kms.tf              # KMS Customer Managed Keys and rotation definitions
+├── storage.tf          # Hardened S3 bucket with Object Lock (WORM) and Lifecycle Rules (GDPR)
+├── audit.tf            # CloudTrail orchestration linked to secure storage
+├── monitoring.tf       # CloudWatch Metric Filters, Alarms, and SNS Topics for incident alerts (DORA)
 ├── region-restriction.tf # IAM policy with explicit Deny logic for region lockdown
 ├── cloud-act-mitigation.tf # Advanced policies to safeguard data from foreign requests
-├── upload-encrypted.sh   # Bash automation script for secure file uploads
-└── outputs.tf            # Cross-cutting resource identifiers and policy ARNs
-```
+├── upload-encrypted.sh # Bash automation script for secure file uploads
+└── outputs.tf          # Cross-cutting resource identifiers and policy ARNs
 
 ## Security Practices
 
@@ -92,6 +93,8 @@ This project applies production-grade cloud compliance and data sovereignty stan
 - **Log Immutability (DORA):** Audit logs are secured in an S3 bucket running in Compliance Mode. This creates a Write-Once-Read-Many (WORM) pattern, preventing modification or deletion by any user.
 - **Cryptographic Ownership:** Enforces data-at-rest encryption via Customer Managed Keys (CMK) with `enable_key_rotation = true` to stay compliant with financial audit rules.
 - **Tamper Detection:** CloudTrail log file integrity validation is activated mathematically to guarantee the authenticity of the audit trail.
+- **Data Lifecycle Management (GDPR Data Minimization):** Implements an automated S3 Lifecycle policy that transitions logs to S3 Glacier after 30 days and enforces permanent deletion at 90 days, adhering strictly to the principle of data minimization.
+- **Continuous Monitoring & Alerting (DORA Compliance):** Utilizes CloudWatch Metric Filters to scan logs for `AccessDenied` or `UnauthorizedOperation` API errors in real-time, instantly triggering security alarms and AWS SNS notifications upon incident detection.
 
 
 ## How to Run
@@ -165,17 +168,23 @@ An error occurred (AccessDenied) when calling the CreateBucket operation: User: 
                           ▼
              [region-restriction.tf] 
          (Enforces Whitelist Region Check)
-         /                               \
+         /                                 \
   (Outside EU)                        (Inside EU)
-      /                                   \
-     ▼                                     ▼
+      /                                     \
+     ▼                                       ▼
 [AccessDenied Error]               [Operation Allowed]
-                                           │
-                                           ▼
+                                            │
+                                            ▼
                                    [CloudTrail Tracking] ──> [kms.tf] (SSE-KMS Encryption)
-                                           │
-                                           ▼
-                                     [storage.tf] (S3 Object Lock - WORM Immutable Layer)
+                                            │
+                      ┌─────────────────────┴─────────────────────┐
+                      ▼                                           ▼
+             [CloudWatch Logs]                             [storage.tf]
+         (Metric Filters & Alarms)               (S3 Object Lock - WORM Layer)
+                      │                                           │
+                      ▼                                           ▼
+          [SNS Security Alert]                        [Data Lifecycle Policy]
+       (Instant Incident Notification)             (30d Glacier -> 90d Purge)
 ```
 
 ## Author

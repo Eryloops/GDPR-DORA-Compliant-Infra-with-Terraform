@@ -80,6 +80,7 @@ resource "aws_s3_bucket_policy" "audit_logs" {
 resource "aws_cloudtrail" "audit" {
   name           = "${var.project_name}-audit-trail"
   s3_bucket_name = aws_s3_bucket.audit_logs.id
+
   # Data Sovereignity: Restricts logging to the EU region only.
   is_multi_region_trail = false
 
@@ -88,6 +89,10 @@ resource "aws_cloudtrail" "audit" {
 
   # Captures global services (like IAM users/roles changes) that impact this account.
   include_global_service_events = true
+
+  # Send events to CloudWatch Logs for real-time monitoring
+  cloud_watch_logs_group_arn = "${aws_cloudwatch_log_group.cloudtrail.arn}:*"
+  cloud_watch_logs_role_arn  = aws_iam_role.cloudtrail_cloudwatch.arn
 
   # Sequential Deployment: Ensures permissions exist before CloudTrail attempts first delivery.
   depends_on = [aws_s3_bucket_policy.audit_logs]
