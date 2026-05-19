@@ -84,6 +84,7 @@ eu-compliance-infra/
 ├── cloud-act-mitigation.tf # Advanced policies to safeguard data from foreign requests
 ├── upload-encrypted.sh # Bash automation script for secure file uploads
 └── outputs.tf          # Cross-cutting resource identifiers and policy ARNs
+``` 
 
 ## Security Practices
 
